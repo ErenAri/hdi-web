@@ -12,10 +12,16 @@ import {
 } from 'recharts';
 import CountrySidebar from "../../components/CountrySidebar";
 
+interface HdiPoint {
+  year: number;
+  hdi: number;
+  predicted: boolean;
+}
+
 export default function Home() {
   const [countryInput, setCountryInput] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [chartData, setChartData] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<HdiPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -33,7 +39,7 @@ export default function Home() {
       c.toLowerCase().includes(countryInput.toLowerCase())
     );
     setSuggestions(filtered);
-  }, [countryInput]);
+  }, [countryInput, countries]);
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -52,19 +58,8 @@ export default function Home() {
 
       if (!response.ok) {
         setError(result.error || "Bir hata oluştu");
-      } else if (result.predictions) {
-        const predictionsArray = Object.entries(result.predictions).map(
-          ([year, hdi]) => ({
-            year,
-            hdi,
-            predicted: true
-          })
-        );
-        setChartData(predictionsArray);
-      } else if (result.data) {
-        setChartData(result.data);
       } else {
-        setError("Veri alınamadı.");
+        setChartData(result.data);
       }
     } catch (err: any) {
       setError("API bağlantı hatası: " + err.message);
@@ -151,7 +146,7 @@ export default function Home() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="year" />
                   <YAxis domain={[0.4, 1]} />
-                  <Tooltip formatter={(value: any) => [`${value}`, 'HDI']} />
+                  <Tooltip formatter={(value: number) => [`${value}`, 'HDI']} />
                   <Line
                     type="monotone"
                     dataKey="hdi"
