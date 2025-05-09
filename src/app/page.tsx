@@ -1,103 +1,171 @@
-import Image from "next/image";
+'use client';
+
+import { useEffect, useState } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from 'recharts';
+import CountrySidebar from "../../components/CountrySidebar";
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [countryInput, setCountryInput] = useState('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
+  const countries = [
+    "Türkiye", "Turkey", "Germany", "France", "USA", "Norway",
+    "Sweden", "Finland", "Japan", "Iceland"
+  ];
+
+  useEffect(() => {
+    if (countryInput.length < 1) {
+      setSuggestions([]);
+      return;
+    }
+    const filtered = countries.filter(c =>
+      c.toLowerCase().includes(countryInput.toLowerCase())
+    );
+    setSuggestions(filtered);
+  }, [countryInput]);
+
+  const handleSubmit = async () => {
+    setLoading(true);
+    setError('');
+    setChartData([]);
+
+    try {
+      const response = await fetch('http://localhost:5000/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ country: countryInput })
+      });
+
+      const result = await response.json();
+      console.log("📦 Gelen veri:", result);
+
+      if (!response.ok) {
+        setError(result.error || "Bir hata oluştu");
+      } else if (result.predictions) {
+        const predictionsArray = Object.entries(result.predictions).map(
+          ([year, hdi]) => ({
+            year,
+            hdi,
+            predicted: true
+          })
+        );
+        setChartData(predictionsArray);
+      } else if (result.data) {
+        setChartData(result.data);
+      } else {
+        setError("Veri alınamadı.");
+      }
+    } catch (err: any) {
+      setError("API bağlantı hatası: " + err.message);
+    }
+
+    setLoading(false);
+  };
+
+  function getHDILevel(hdi: number): string {
+    if (hdi >= 0.8) return "Very High";
+    if (hdi >= 0.7) return "High";
+    if (hdi >= 0.55) return "Medium";
+    return "Low";
+  }
+
+  function getHDIStyle(hdi: number): string {
+    if (hdi >= 0.8) return "bg-green-100 border-green-400 text-green-800";
+    if (hdi >= 0.7) return "bg-blue-100 border-blue-400 text-blue-800";
+    if (hdi >= 0.55) return "bg-yellow-100 border-yellow-400 text-yellow-800";
+    return "bg-red-100 border-red-400 text-red-800";
+  }
+
+  return (
+    <div className="flex">
+      <CountrySidebar onSelect={setCountryInput} />
+      <main className="min-h-screen flex-1 bg-gray-100 p-6 font-sans text-gray-800">
+        <h1 className="text-3xl font-bold mb-4 text-black">🌍 HDI Tahmini</h1>
+
+        <input
+          type="text"
+          value={countryInput}
+          onChange={(e) => setCountryInput(e.target.value)}
+          placeholder="Ülke seçin..."
+          className="border p-2 w-full rounded text-gray-900"
+        />
+
+        {suggestions.length > 0 && (
+          <ul className="border rounded mt-1 bg-white shadow-md text-gray-800">
+            {suggestions.map((s, i) => (
+              <li
+                key={i}
+                className="p-2 hover:bg-gray-100 cursor-pointer"
+                onClick={() => setCountryInput(s)}
+              >
+                {s}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <button
+          onClick={handleSubmit}
+          className="bg-blue-600 text-white px-4 py-2 rounded mt-3 hover:bg-blue-700"
+          disabled={loading}
+        >
+          {loading ? "Tahmin ediliyor..." : "Tahmin Et"}
+        </button>
+
+        {error && <p className="text-red-600 mt-4">{error}</p>}
+
+        {Array.isArray(chartData) && chartData.length > 0 && (
+          <>
+            <div className="mt-6 space-y-3">
+              {chartData.slice(-3).map((d) => (
+                <div
+                  key={d.year}
+                  className={`p-4 border rounded shadow-sm ${getHDIStyle(d.hdi)}`}
+                >
+                  <strong className="text-black">{d.year}:</strong> {d.hdi}
+                  <span className="ml-2 text-sm italic">
+                    ({getHDILevel(d.hdi)} {d.predicted ? "- Tahmini" : ""})
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-8">
+              <h2 className="text-xl font-semibold mb-2 text-black">📈 HDI Geçmiş + Tahmin Grafiği</h2>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart
+                  data={chartData}
+                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="year" />
+                  <YAxis domain={[0.4, 1]} />
+                  <Tooltip formatter={(value: any) => [`${value}`, 'HDI']} />
+                  <Line
+                    type="monotone"
+                    dataKey="hdi"
+                    stroke="#2563eb"
+                    strokeWidth={3}
+                    dot={false}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </>
+        )}
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
     </div>
   );
 }
